@@ -1,0 +1,69 @@
+<?php
+
+namespace Sculpin\Contrib\Taxonomy;
+
+use Sculpin\Core\DataProvider\DataProviderManager;
+use Sculpin\Core\Generator\GeneratorInterface;
+use Sculpin\Core\Source\SourceInterface;
+
+class ProxySourceTaxonomyIndexGenerator implements GeneratorInterface
+{
+    private $dataProviderManager;
+    private $dataProviderName;
+    private $injectedTaxonKey;
+    private $injectedTaxonItemsKey;
+
+    public function __construct(
+        DataProviderManager $dataProviderManager,
+        $dataProviderName,
+        $injectedTaxonKey,
+        $injectedTaxonItemsKey
+    ) {
+        $this->dataProviderManager = $dataProviderManager;
+        $this->dataProviderName = $dataProviderName; // post_tags
+        $this->injectedTaxonKey = $injectedTaxonKey; // tag
+        $this->injectedTaxonItemsKey = $injectedTaxonItemsKey; // tagged_posts
+    }
+
+    public function generate(SourceInterface $source)
+    {
+        $generatedSources = array();
+
+        $dataProvider = $this->dataProviderManager->dataProvider($this->dataProviderName);
+        $taxons = $dataProvider->provideData();
+
+        $generatedSources = array();
+        foreach ($taxons as $taxon => $items) {
+            $generatedSource = $source->duplicate(
+                $source->sourceId().':'.$this->injectedTaxonKey.'='.$taxon
+            );
+
+            $permalink = $source->data()->get('permalink') ?: $source->relativePathname();
+            $basename = basename($permalink);
+
+            $permalink = dirname($permalink);
+
+            if (preg_match('/^(.+?)\.(.+)$/', $basename, $matches)) {
+                $permalink = $permalink.'/'.$taxon.'/index.html';
+            } else {
+                // not sure what case this is?
+            }
+
+            if (0 === strpos($permalink, './')) {
+                $permalink = substr($permalink, 2);
+            }
+
+            if ($permalink) {
+                // not sure if this is ever going to happen?
+                $generatedSource->data()->set('permalink', $permalink);
+            }
+
+            $generatedSource->data()->set($this->injectedTaxonKey, $taxon);
+            $generatedSource->data()->set($this->injectedTaxonItemsKey, $items);
+
+            $generatedSources[] = $generatedSource;
+        }
+
+        return $generatedSources;
+    }
+}
